@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analysis Results – DataAnalyzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue-50:   #eff6ff;
+      --blue-100:  #dbeafe;
+      --blue-400:  #60a5fa;
+      --blue-600:  #2563eb;
+      --blue-700:  #1d4ed8;
+      --blue-800:  #1e40af;
+      --blue-900:  #1e3a8a;
+      --slate-50:  #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-400: #94a3b8;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-900: #0f172a;
+      --green-100: #dcfce7;
+      --green-600: #16a34a;
+      --red-100:   #fee2e2;
+      --red-600:   #dc2626;
+      --amber-100: #fef3c7;
+      --amber-600: #d97706;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--slate-50);
+      color: var(--slate-700);
+      min-height: 100vh;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+      padding: 1rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+      box-shadow: 0 2px 12px rgba(0,0,0,.2);
+    }
+    .topbar-brand {
+      display: flex; align-items: center; gap: .6rem;
+      font-family: 'Sora', sans-serif; font-weight: 800;
+      font-size: 1.1rem; color: #fff; text-decoration: none;
+    }
+    .topbar-file {
+      display: flex; align-items: center; gap: .5rem;
+      background: rgba(255,255,255,.15); border-radius: 8px;
+      padding: .4rem .9rem; font-size: .82rem; color: rgba(255,255,255,.9);
+    }
+    .btn-back {
+      display: flex; align-items: center; gap: .4rem;
+      background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+      color: #fff; font-family: 'DM Sans', sans-serif; font-size: .82rem;
+      font-weight: 500; padding: .4rem 1rem; border-radius: 8px;
+      cursor: pointer; text-decoration: none; transition: background .2s;
+    }
+    .btn-back:hover { background: rgba(255,255,255,.25); }
+
+    /* ── LOADING ── */
+    #loadingScreen {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 70vh; gap: 1.2rem;
+    }
+    .spinner-ring {
+      width: 48px; height: 48px;
+      border: 4px solid var(--blue-100);
+      border-top-color: var(--blue-600);
+      border-radius: 50%; animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loadingScreen p { color: var(--slate-400); font-size: .9rem; }
+
+    /* ── ERROR ── */
+    #errorScreen {
+      display: none; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 60vh; gap: 1rem;
+      text-align: center; padding: 2rem;
+    }
+    #errorScreen h2 { font-family: 'Sora', sans-serif; color: var(--slate-900); }
+    #errorScreen p  { color: var(--slate-400); max-width: 400px; }
+
+    /* ── PAGE ── */
+    #resultsScreen { display: none; }
+    .page-wrapper {
+      max-width: 1100px; margin: 0 auto;
+      padding: 2.5rem 1.5rem 5rem;
+    }
+
+    /* ── STAT TILES ── */
+    .stat-bar {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 1rem; margin-bottom: 2.5rem;
+    }
+    .stat-tile {
+      background: #fff; border-radius: 14px;
+      padding: 1.3rem 1.5rem;
+      border: 1px solid var(--slate-200);
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .stat-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+    .stat-tile-label {
+      font-size: .7rem; font-weight: 700; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--slate-400); margin-bottom: .4rem;
+    }
+    .stat-tile-value {
+      font-family: 'Sora', sans-serif; font-size: 1.75rem;
+      font-weight: 800; line-height: 1; margin-bottom: .3rem;
+    }
+    .stat-tile-sub { font-size: .75rem; color: var(--slate-400); }
+    .tile-blue  .stat-tile-value { color: var(--blue-600); }
+    .tile-green .stat-tile-value { color: var(--green-600); }
+    .tile-amber .stat-tile-value { color: var(--amber-600); }
+    .tile-red   .stat-tile-value { color: var(--red-600); }
+
+    /* ── SECTION CARDS ── */
+    .section-card {
+      background: #fff; border-radius: 16px;
+      border: 1px solid var(--slate-200);
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+      margin-bottom: 1.5rem; overflow: hidden;
+      animation: fadeUp .4s ease both;
+    }
+    .section-card:nth-child(2) { animation-delay: .05s; }
+    .section-card:nth-child(3) { animation-delay: .10s; }
+    .section-card:nth-child(4) { animation-delay: .15s; }
+    .section-card:nth-child(5) { animation-delay: .20s; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.2rem 1.6rem; border-bottom: 1px solid var(--slate-100);
+      cursor: pointer; user-select: none; transition: background .15s;
+    }
+    .section-header:hover { background: var(--slate-50); }
+    .section-header-left { display: flex; align-items: center; gap: .85rem; }
+    .section-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .icon-blue  { background: var(--blue-50); }
+    .icon-amber { background: var(--amber-100); }
+    .icon-slate { background: var(--slate-100); }
+    .icon-green { background: var(--green-100); }
+    .section-title-text {
+      font-family: 'Sora', sans-serif; font-size: .95rem;
+      font-weight: 700; color: var(--slate-900);
+    }
+    .section-subtitle { font-size: .76rem; color: var(--slate-400); margin-top: 2px; }
+    .chevron { color: var(--slate-400); font-size: .85rem; transition: transform .25s; }
+    .section-card.collapsed .chevron     { transform: rotate(-90deg); }
+    .section-card.collapsed .section-body { display: none; }
+    .section-body { padding: 1.4rem 1.6rem; }
+
+    /* ── TABLES ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    .data-table thead tr { background: var(--slate-50); }
+    .data-table th {
+      text-align: left; padding: .6rem 1rem;
+      font-size: .7rem; font-weight: 700; letter-spacing: .05em;
+      text-transform: uppercase; color: var(--slate-400);
+      border-bottom: 2px solid var(--slate-200);
+    }
+    .data-table td {
+      padding: .65rem 1rem;
+      border-bottom: 1px solid var(--slate-100);
+      color: var(--slate-700); vertical-align: middle;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--slate-50); }
+    .data-table td.col-name { font-weight: 600; color: var(--slate-900); }
+    .data-table td.mono { font-family: 'Courier New', monospace; font-size: .8rem; color: var(--blue-600); }
+
+    /* ── BADGES ── */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: .2rem .65rem; border-radius: 100px;
+      font-size: .7rem; font-weight: 700;
+    }
+    .badge-red   { background: var(--red-100);   color: var(--red-600); }
+    .badge-green { background: var(--green-100); color: var(--green-600); }
+    .badge-blue  { background: var(--blue-50);   color: var(--blue-700); }
+    .badge-amber { background: var(--amber-100); color: var(--amber-600); }
+
+    /* ── CLEAN STATE ── */
+    .clean-state {
+      display: flex; align-items: center; gap: .6rem;
+      background: var(--green-100); border-radius: 10px;
+      padding: .85rem 1.2rem;
+      color: var(--green-600); font-size: .875rem; font-weight: 600;
+    }
+
+    /* ── PROGRESS BAR ── */
+    .progress-wrap { display: flex; align-items: center; gap: .75rem; min-width: 180px; }
+    .progress-bg {
+      flex: 1; height: 6px; background: var(--slate-100);
+      border-radius: 3px; overflow: hidden;
+    }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+    /* ── COLUMN PILLS ── */
+    .pill-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .pill {
+      background: var(--blue-50); color: var(--blue-700);
+      border: 1px solid var(--blue-100); border-radius: 100px;
+      font-size: .75rem; font-weight: 600; padding: .2rem .7rem;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* ── STEP SPINNER ── */
+    .step-loading {
+      display: flex; align-items: center; gap: .8rem;
+      color: var(--slate-400); font-size: .85rem; padding: .3rem 0;
+    }
+    .mini-spinner {
+      width: 20px; height: 20px; flex-shrink: 0;
+      border: 3px solid var(--blue-100);
+      border-top-color: var(--blue-600);
+      border-radius: 50%; animation: spin .75s linear infinite;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .stat-bar { grid-template-columns: repeat(2, 1fr); }
+      .topbar-file { display: none; }
+      .section-body { padding: 1rem; }
+    }
+    @media (max-width: 480px) {
+      .stat-bar { grid-template-columns: 1fr 1fr; }
+      .page-wrapper { padding: 1.5rem 1rem 4rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <a class="topbar-brand" href="index.html">
+    <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+      <rect x="2" y="14" width="6" height="12" rx="1.5" fill="#4f8ef7"/>
+      <rect x="11" y="8" width="6" height="18" rx="1.5" fill="#2563eb"/>
+      <rect x="20" y="2" width="6" height="24" rx="1.5" fill="#1e40af"/>
+    </svg>
+    DataAnalyzer
+  </a>
+  <div class="topbar-file">
+    <svg width="13" height="13" fill="none" viewBox="0 0 16 16">
+      <path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+    <span id="topbarFileName">Loading…</span>
+  </div>
+  <a class="btn-back" href="index.html">← Analyze Another</a>
+</div>
+
+<!-- LOADING -->
+<div id="loadingScreen">
+  <div class="spinner-ring"></div>
+  <p>Running analysis, please wait…</p>
+</div>
+
+<!-- ERROR -->
+<div id="errorScreen">
+  <div style="font-size:2.5rem">⚠️</div>
+  <h2>Analysis Failed</h2>
+  <p id="errorMsg">No file found. Please go back and upload a dataset.</p>
+  <a class="btn-back" href="index.html" style="margin-top:.5rem">← Go Back</a>
+</div>
+
+<!-- RESULTS -->
+<div id="resultsScreen">
+  <div class="page-wrapper">
+
+    <div class="stat-bar" id="statBar"></div>
+
+    <!-- 1. DATA SUMMARY -->
+    <div class="section-card" id="cardSummary">
+      <div class="section-header" onclick="toggleCard('cardSummary')">
+        <div class="section-header-left">
+          <div class="section-icon icon-blue">📊</div>
+          <div>
+            <div class="section-title-text">Data Summary</div>
+            <div class="section-subtitle">Shape, column names and data types</div>
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body" id="bodySummary">
+        <div class="step-loading"><div class="mini-spinner"></div>Fetching data summary…</div>
+      </div>
+    </div>
+    <!-- COLUMN STATISTICS -->
+    <div class="section-card" id="cardColStats">
+      <div class="section-header" onclick="toggleCard('cardColStats')">
+        <div class="section-header-left">
+          <div class="section-icon icon-blue">🔢</div>
+          <div>
+            <div class="section-title-text">Column Statistics</div>
+            <div class="section-subtitle">Numeric distributions and categorical summaries</div>
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body" id="bodyColStats">
+        <div class="step-loading"><div class="mini-spinner"></div>Loading column statistics…</div>
+      </div>
+    </div>
+    <!-- 2. MISSING VALUES -->
+    <div class="section-card" id="cardMissing">
+      <div class="section-header" onclick="toggleCard('cardMissing')">
+        <div class="section-header-left">
+          <div class="section-icon icon-amber">⚠️</div>
+          <div>
+            <div class="section-title-text">Missing Values</div>
+            <div class="section-subtitle">Null / NaN count per column</div>
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body" id="bodyMissing">
+        <div class="step-loading"><div class="mini-spinner"></div>Checking for missing values…</div>
+      </div>
+    </div>
+
+    <!-- 3. DUPLICATES -->
+    <div class="section-card" id="cardDuplicates">
+      <div class="section-header" onclick="toggleCard('cardDuplicates')">
+        <div class="section-header-left">
+          <div class="section-icon icon-slate">🗂️</div>
+          <div>
+            <div class="section-title-text">Duplicate Rows</div>
+            <div class="section-subtitle">Identical records per column</div>
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body" id="bodyDuplicates">
+        <div class="step-loading"><div class="mini-spinner"></div>Scanning for duplicates…</div>
+      </div>
+    </div>
+
+    <!-- 4. OUTLIERS -->
+    <div class="section-card" id="cardOutliers">
+      <div class="section-header" onclick="toggleCard('cardOutliers')">
+        <div class="section-header-left">
+          <div class="section-icon icon-green">📈</div>
+          <div>
+            <div class="section-title-text">Outlier Detection</div>
+            <div class="section-subtitle">Statistical anomalies per column</div>
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body" id="bodyOutliers">
+        <div class="step-loading"><div class="mini-spinner"></div>Detecting outliers…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  /* ═══════════════════════════════════════════════
+     results.js  –  field mapping based on confirmed
+     pipeline output:
+
+     data_summary:
+       { num_rows, num_columns, column_names[], data_types{col:type} }
+
+     missing_values:
+       { COL: { missing_count, "missing_%" }, … }
+
+     duplicates:
+       { COL: { duplicate_count, "duplicate_%" }, … }
+
+     outliers:
+       { COL: { outlier_count, "outlier_%" }, … }
+     ═══════════════════════════════════════════════ */
+
+  const API_BASE = 'http://localhost:5000';
+
+  const stored   = sessionStorage.getItem('da_file');
+  const fileName = sessionStorage.getItem('da_filename') || 'dataset';
+  document.getElementById('topbarFileName').textContent = fileName;
+
+  if (!stored) {
+    showError('No file found. Please go back and upload a dataset.');
+  } else {
+    runAnalysis(stored, fileName);
+  }
+
+  /* ════════════════════════
+     MAIN – sequential calls
+     ════════════════════════ */
+  async function runAnalysis(base64, name) {
+    const file = base64ToFile(base64, name);
+    show('resultsScreen');
+    hide('loadingScreen');
+
+    setLoading('bodySummary',   'Fetching data summary…');
+    const summary = await apiCall(`${API_BASE}/api/summary`, file);
+    renderSummary(summary);
+
+    /* Step 2 – Column Stats */
+    setLoading('bodyColStats', 'Loading column statistics…');
+    const colStats = await apiCall(`${API_BASE}/api/column-stats`, file);
+    renderColStats(colStats);
+
+    setLoading('bodyMissing',   'Checking for missing values…');
+    const missing = await apiCall(`${API_BASE}/api/missing-values`, file);
+    renderMissing(missing);
+
+    setLoading('bodyDuplicates','Scanning for duplicate rows…');
+    const dups    = await apiCall(`${API_BASE}/api/duplicates`, file);
+    renderDuplicates(dups);
+
+    setLoading('bodyOutliers',  'Detecting outliers…');
+    const outliers = await apiCall(`${API_BASE}/api/outliers`, file);
+    renderOutliers(outliers);
+
+    renderStatBar(summary, missing, dups, outliers);
+  }
+
+  /* ════════════════════════
+     API
+     ════════════════════════ */
+  async function apiCall(url, file) {
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res  = await fetch(url, { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || `Error ${res.status}`);
+      return json.data !== undefined ? json.data : json;
+    } catch (err) {
+      console.warn('API error:', url, err.message);
+      return null;
+    }
+  }
+
+  /* ════════════════════════
+     STAT BAR
+     ════════════════════════ */
+  function renderStatBar(summary, missing, dups, outliers) {
+    const rows = summary?.num_rows    ?? '—';
+    const cols = summary?.num_columns ?? '—';
+
+    let totalMissing = 0;
+    if (missing) Object.values(missing).forEach(v => { totalMissing += v.missing_count ?? 0; });
+
+    let totalDups = 0;
+    if (dups) totalDups = Math.max(...Object.values(dups).map(v => v.duplicate_count ?? 0));
+
+    document.getElementById('statBar').innerHTML = `
+      <div class="stat-tile tile-blue">
+        <div class="stat-tile-label">Total Rows</div>
+        <div class="stat-tile-value">${fmt(rows)}</div>
+        <div class="stat-tile-sub">records in dataset</div>
+      </div>
+      <div class="stat-tile tile-blue">
+        <div class="stat-tile-label">Total Columns</div>
+        <div class="stat-tile-value">${fmt(cols)}</div>
+        <div class="stat-tile-sub">features / fields</div>
+      </div>
+      <div class="stat-tile ${totalMissing > 0 ? 'tile-amber' : 'tile-green'}">
+        <div class="stat-tile-label">Missing Cells</div>
+        <div class="stat-tile-value">${fmt(totalMissing)}</div>
+        <div class="stat-tile-sub">${totalMissing === 0 ? 'dataset is clean' : 'need attention'}</div>
+      </div>
+      <div class="stat-tile ${totalDups > 0 ? 'tile-red' : 'tile-green'}">
+        <div class="stat-tile-label">Max Duplicates</div>
+        <div class="stat-tile-value">${fmt(totalDups)}</div>
+        <div class="stat-tile-sub">${totalDups === 0 ? 'no duplicates' : 'in a single column'}</div>
+      </div>`;
+  }
+
+  /* ════════════════════════
+     RENDER: DATA SUMMARY
+     { num_rows, num_columns, column_names[], data_types{} }
+     ════════════════════════ */
+  function renderSummary(data) {
+    const body = document.getElementById('bodySummary');
+    if (!data) { body.innerHTML = errMsg('Could not load data summary.'); return; }
+
+    const colNames  = data.column_names ?? [];
+    const dataTypes = data.data_types   ?? {};
+
+    const pills = colNames.map(c => `<span class="pill">${c}</span>`).join('');
+
+    const dtypeRows = Object.entries(dataTypes).map(([col, typ]) => `
+      <tr>
+        <td class="col-name">${col}</td>
+        <td class="mono">${typ}</td>
+      </tr>`).join('');
+
+    body.innerHTML = `
+      <table class="data-table" style="margin-bottom:1.4rem">
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td class="col-name">Number of Rows</td>   <td><strong>${fmt(data.num_rows)}</strong></td></tr>
+          <tr><td class="col-name">Number of Columns</td><td><strong>${fmt(data.num_columns)}</strong></td></tr>
+        </tbody>
+      </table>
+
+      <p style="font-size:.75rem;font-weight:700;color:var(--slate-400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.55rem">
+        Column Names (${colNames.length})
+      </p>
+      <div class="pill-list" style="margin-bottom:1.5rem">${pills || '—'}</div>
+
+      <p style="font-size:.75rem;font-weight:700;color:var(--slate-400);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.55rem">
+        Data Types per Column
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Column</th><th>Type</th></tr></thead>
+        <tbody>${dtypeRows}</tbody>
+      </table>`;
+  }
+  /* ════════════════════════
+   RENDER: COLUMN STATISTICS
+   numeric_stats:      { COL: { count, mean, std, min, 25%, 50%, 75%, max, skewness } }
+   categorical_stats:  { COL: { num_unique_values, most_frequent, frequent_count } }
+   ════════════════════════ */
+  function renderColStats(data) { 
+    const body = document.getElementById('bodyColStats');
+    if (!data) { body.innerHTML = errMsg('Could not load column statistics.'); return; }
+
+    const numeric     = data.numeric_stats     ?? {};
+    const categorical = data.categorical_stats ?? {};
+
+    /* ── TAB BUTTONS ── */
+    const tabsHTML = `
+      <div style="display:flex;gap:.5rem;margin-bottom:1.2rem">
+        <button
+          id="tabBtnNumeric"
+          onclick="switchTab('numeric')"
+          style="padding:.45rem 1.1rem;border-radius:8px;border:1.5px solid var(--blue-600);
+                background:var(--blue-600);color:#fff;font-weight:600;font-size:.82rem;cursor:pointer">
+          Numeric (${Object.keys(numeric).length})
+        </button>
+        <button
+          id="tabBtnCategorical"
+          onclick="switchTab('categorical')"
+          style="padding:.45rem 1.1rem;border-radius:8px;border:1.5px solid var(--slate-200);
+                background:#fff;color:var(--slate-600);font-weight:600;font-size:.82rem;cursor:pointer">
+          Categorical (${Object.keys(categorical).length})
+        </button>
+      </div>`;
+
+    /* ── NUMERIC TABLE ── */
+    const numericRows = Object.entries(numeric).map(([col, s]) => `
+      <tr>
+        <td class="col-name">${col}</td>
+        <td>${fmt(Math.round(s.count))}</td>
+        <td>${s.min?.toFixed(2)   ?? '—'}</td>
+        <td>${s.max?.toFixed(2)   ?? '—'}</td>
+        <td><strong>${s.mean?.toFixed(3) ?? '—'}</strong></td>
+        <td>${s['50%']?.toFixed(3) ?? '—'}</td>
+        <td>${s.std?.toFixed(3)   ?? '—'}</td>
+        <td>${s['25%']?.toFixed(2) ?? '—'}</td>
+        <td>${s['75%']?.toFixed(2) ?? '—'}</td>
+        <td>
+          <span class="badge ${
+            s.skewness >  1 ? 'badge-red'   :
+            s.skewness < -1 ? 'badge-amber' : 'badge-green'}">
+            ${s.skewness?.toFixed(3) ?? '—'}
+          </span>
+        </td>
+      </tr>`).join('');
+
+    const numericHTML = `
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Column</th><th>Count</th><th>Min</th><th>Max</th>
+              <th>Mean</th><th>Median</th><th>Std Dev</th>
+              <th>25%</th><th>75%</th><th>Skewness</th>
+            </tr>
+          </thead>
+          <tbody>${numericRows}</tbody>
+        </table>
+      </div>
+      <p style="margin-top:.8rem;font-size:.75rem;color:var(--slate-400)">
+        💡 Skewness: <span style="color:var(--red-600)">red = highly skewed (&gt;1)</span> ·
+        <span style="color:var(--amber-600)">amber = negatively skewed (&lt;-1)</span> ·
+        <span style="color:var(--green-600)">green = roughly symmetric</span>
+      </p>`;
+
+    /* ── CATEGORICAL TABLE ── */
+    const catRows = Object.entries(categorical).map(([col, s]) => `
+      <tr>
+        <td class="col-name">${col}</td>
+        <td>${fmt(s.num_unique_values)}</td>
+        <td class="mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            title="${s.most_frequent?.trim()}">
+          ${s.most_frequent?.trim() ?? '—'}
+        </td>
+        <td>${fmt(s.frequent_count)}</td>
+      </tr>`).join('');
+
+    const categoricalHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Column</th>
+            <th>Unique Values</th>
+            <th>Most Frequent</th>
+            <th>Frequency Count</th>
+          </tr>
+        </thead>
+        <tbody>${catRows}</tbody>
+      </table>`;
+
+    body.innerHTML = `
+      ${tabsHTML}
+      <div id="tabNumeric">${numericHTML}</div>
+      <div id="tabCategorical" style="display:none">${categoricalHTML}</div>`;
+  }
+
+  /* Tab switcher for column stats */
+  function switchTab(tab) {
+    const isNumeric = tab === 'numeric';
+
+    document.getElementById('tabNumeric').style.display      = isNumeric ? 'block' : 'none';
+    document.getElementById('tabCategorical').style.display  = isNumeric ? 'none'  : 'block';
+
+    const activeStyle   = 'background:var(--blue-600);color:#fff;border-color:var(--blue-600)';
+    const inactiveStyle = 'background:#fff;color:var(--slate-600);border-color:var(--slate-200)';
+
+    document.getElementById('tabBtnNumeric').style.cssText     += isNumeric ? activeStyle : inactiveStyle;
+    document.getElementById('tabBtnCategorical').style.cssText += isNumeric ? inactiveStyle : activeStyle;
+  }
+
+  /* ════════════════════════
+     RENDER: MISSING VALUES
+     { COL: { missing_count, "missing_%" } }
+     ════════════════════════ */
+  function renderMissing(data) {
+    const body = document.getElementById('bodyMissing');
+    if (!data) { body.innerHTML = errMsg('Could not load missing values.'); return; }
+
+    const entries     = Object.entries(data);
+    const withMissing = entries.filter(([, v]) => (v.missing_count ?? 0) > 0);
+
+    if (withMissing.length === 0) {
+      body.innerHTML = `<div class="clean-state">✔ No missing values found across all ${entries.length} columns.</div>`;
+      return;
+    }
+
+    const rows = entries.map(([col, v]) => {
+      const count = v.missing_count  ?? 0;
+      const pct   = v['missing_%']   ?? 0;
+      const barColor = pct > 50 ? '#dc2626' : pct > 10 ? '#d97706' : '#2563eb';
+      const badgeCls = pct > 50 ? 'badge-red' : pct > 10 ? 'badge-amber' : 'badge-blue';
+      return `
+        <tr>
+          <td class="col-name">${col}</td>
+          <td>${count === 0 ? '<span class="badge badge-green">0</span>' : fmt(count)}</td>
+          <td>
+            <div class="progress-wrap">
+              <div class="progress-bg">
+                <div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${barColor}"></div>
+              </div>
+              <span class="badge ${badgeCls}">${pct}%</span>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    body.innerHTML = `
+      <p style="font-size:.82rem;color:var(--slate-400);margin-bottom:1rem">
+        <span class="badge badge-red" style="margin-right:.4rem">${withMissing.length} of ${entries.length} columns</span>
+        have missing data
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Column</th><th>Missing Count</th><th>Missing %</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  /* ════════════════════════
+     RENDER: DUPLICATES
+     { COL: { duplicate_count, "duplicate_%" } }
+     ════════════════════════ */
+  function renderDuplicates(data) {
+    const body = document.getElementById('bodyDuplicates');
+    if (!data) { body.innerHTML = errMsg('Could not load duplicate data.'); return; }
+
+    const entries  = Object.entries(data);
+    const withDups = entries.filter(([, v]) => (v.duplicate_count ?? 0) > 0);
+
+    if (withDups.length === 0) {
+      body.innerHTML = `<div class="clean-state">✔ No duplicate rows found across all ${entries.length} columns.</div>`;
+      return;
+    }
+
+    const rows = entries.map(([col, v]) => {
+      const count  = v.duplicate_count  ?? 0;
+      const pctRaw = v['duplicate_%']   ?? 0;          // e.g. 0.32 = 32%
+      const pct    = (pctRaw * 100).toFixed(1);
+      const barColor = pctRaw > 0.8 ? '#dc2626' : pctRaw > 0.5 ? '#d97706' : '#2563eb';
+      const badgeCls = pctRaw > 0.8 ? 'badge-red' : pctRaw > 0.5 ? 'badge-amber' : 'badge-blue';
+      return `
+        <tr>
+          <td class="col-name">${col}</td>
+          <td>${count === 0 ? '<span class="badge badge-green">0</span>' : fmt(count)}</td>
+          <td>
+            <div class="progress-wrap">
+              <div class="progress-bg">
+                <div class="progress-fill" style="width:${Math.min(pctRaw * 100, 100)}%;background:${barColor}"></div>
+              </div>
+              <span class="badge ${badgeCls}">${pct}%</span>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    body.innerHTML = `
+      <p style="font-size:.82rem;color:var(--slate-400);margin-bottom:1rem">
+        <span class="badge badge-amber" style="margin-right:.4rem">${withDups.length} of ${entries.length} columns</span>
+        contain duplicate values
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Column</th><th>Duplicate Count</th><th>Duplication Rate</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  /* ════════════════════════
+     RENDER: OUTLIERS
+     { COL: { outlier_count, "outlier_%" } }
+     ════════════════════════ */
+  function renderOutliers(data) {
+    const body = document.getElementById('bodyOutliers');
+    if (!data) { body.innerHTML = errMsg('Could not load outlier data.'); return; }
+
+    const entries      = Object.entries(data);
+    const withOutliers = entries.filter(([, v]) => (v.outlier_count ?? 0) > 0);
+
+    if (withOutliers.length === 0) {
+      body.innerHTML = `<div class="clean-state">✔ No outliers detected across all ${entries.length} columns.</div>`;
+      return;
+    }
+
+    const rows = entries.map(([col, v]) => {
+      const count  = v.outlier_count ?? 0;
+      const pctRaw = v['outlier_%']  ?? 0;             // e.g. 0.0165
+      const pct    = (pctRaw * 100).toFixed(3);
+      return `
+        <tr>
+          <td class="col-name">${col}</td>
+          <td>${count === 0
+            ? '<span class="badge badge-green">0</span>'
+            : `<span class="badge badge-red">${fmt(count)}</span>`}
+          </td>
+          <td>${count === 0
+            ? '<span class="badge badge-green">Clean</span>'
+            : `<span class="badge badge-amber">${pct}%</span>`}
+          </td>
+        </tr>`;
+    }).join('');
+
+    body.innerHTML = `
+      <p style="font-size:.82rem;color:var(--slate-400);margin-bottom:1rem">
+        <span class="badge badge-red" style="margin-right:.4rem">${withOutliers.length} of ${entries.length} columns</span>
+        contain statistical outliers
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Column</th><th>Outlier Count</th><th>Outlier Rate</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  /* ════════════════════════
+     HELPERS
+     ════════════════════════ */
+  function setLoading(bodyId, msg) {
+    const el = document.getElementById(bodyId);
+    if (el) el.innerHTML = `
+      <div class="step-loading">
+        <div class="mini-spinner"></div>${msg}
+      </div>`;
+  }
+
+  function toggleCard(id) {
+    document.getElementById(id).classList.toggle('collapsed');
+  }
+
+  function fmt(v) {
+    if (v === null || v === undefined || v === '—') return '—';
+    const n = Number(v);
+    return isNaN(n) ? v : n.toLocaleString();
+  }
+
+  function errMsg(msg) {
+    return `<p style="color:var(--red-600);font-size:.85rem;padding:.3rem 0">⚠️ ${msg}</p>`;
+  }
+
+  function show(id) { document.getElementById(id).style.display = 'block'; }
+  function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+  function showError(msg) {
+    hide('loadingScreen');
+    const s = document.getElementById('errorScreen');
+    s.style.display = 'flex';
+    document.getElementById('errorMsg').textContent = msg;
+  }
+
+  function base64ToFile(base64, name) {
+    const arr  = base64.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8 = new Uint8Array(n);
+    while (n--) u8[n] = bstr.charCodeAt(n);
+    return new File([u8], name, { type: mime });
+  }
+</script>
+</body>
+</html>

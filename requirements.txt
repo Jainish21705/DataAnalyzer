@@ -1,0 +1,10 @@
+pandas
+numpy
+matplotlib
+ipykernel
+seaborn
+scikit-learn
+uvicorn
+fastapi
+python-multipart
+openpyxl
