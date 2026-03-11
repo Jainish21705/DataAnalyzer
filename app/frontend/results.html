@@ -282,9 +282,25 @@
 <!-- RESULTS -->
 <div id="resultsScreen">
   <div class="page-wrapper">
-
+    
     <div class="stat-bar" id="statBar"></div>
-
+    
+    <!-- DATASET PREVIEW -->
+    <div class="section-card" id="cardPreview">
+      <div class="section-header" onclick="toggleCard('cardPreview')">
+        <div class="section-header-left">
+          <div class="section-icon icon-slate">🗃️</div>
+          <div>
+            <div class="section-title-text">Dataset Preview</div>
+            <div class="section-subtitle">First 10 rows of your dataset</div>
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body" id="bodyPreview">
+        <div class="step-loading"><div class="mini-spinner"></div>Loading preview…</div>
+      </div>
+    </div>
     <!-- 1. DATA SUMMARY -->
     <div class="section-card" id="cardSummary">
       <div class="section-header" onclick="toggleCard('cardSummary')">
@@ -426,6 +442,10 @@
     show('resultsScreen');
     hide('loadingScreen');
 
+    setLoading('bodyPreview', 'Loading dataset preview…');
+    const preview = await apiCall(`${API_BASE}/api/preview`, file);
+    renderPreview(preview);
+
     setLoading('bodySummary',   'Fetching data summary…');
     const summary = await apiCall(`${API_BASE}/api/summary`, file);
     renderSummary(summary);
@@ -502,6 +522,52 @@
         <div class="stat-tile-value">${fmt(totalDups)}</div>
         <div class="stat-tile-sub">${totalDups === 0 ? 'no duplicates' : 'in a single column'}</div>
       </div>`;
+  }
+
+  /* ════════════════════════
+   RENDER: DATASET PREVIEW
+   { columns: [], rows: [{...}] }
+   ════════════════════════ */
+  function renderPreview(data) {
+    const body = document.getElementById('bodyPreview');
+    if (!data) { body.innerHTML = errMsg('Could not load dataset preview.'); return; }
+
+    const columns = data.columns ?? [];
+    const rows    = data.rows    ?? [];
+
+    const headerCells = columns.map(c =>
+      `<th>${c}</th>`
+    ).join('');
+
+    const bodyRows = rows.map(row => {
+      const cells = columns.map(col => {
+        const val = row[col];
+        const display = (val === null || val === undefined || val === 'N/A')
+          ? `<span style="color:var(--slate-400);font-style:italic">N/A</span>`
+          : String(val).trim() === ''
+          ? `<span style="color:var(--slate-400);font-style:italic">empty</span>`
+          : `<span title="${String(val).trim()}">${truncate(String(val).trim(), 25)}</span>`;
+        return `<td>${display}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    body.innerHTML = `
+      <p style="font-size:.78rem;color:var(--slate-400);margin-bottom:.9rem">
+        Showing first <strong>${rows.length}</strong> rows ·
+        <strong>${columns.length}</strong> columns
+      </p>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr>${headerCells}</tr></thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  /* truncate long cell values */
+  function truncate(str, max) {
+    return str.length > max ? str.slice(0, max) + '…' : str;
   }
 
   /* ════════════════════════

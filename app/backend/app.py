@@ -180,6 +180,28 @@ async def outliers(file: UploadFile = File(..., description="CSV or Excel file t
     finally:
         cleanup(tmp_path)
 
+@app.post("/api/preview", tags=["Analysis"])
+async def preview(file: UploadFile = File(...)):
+    validate_file(file)
+    tmp_path = None
+    try:
+        tmp_path = await save_temp_file(file)
+        analyzer = DataAnalyzer()
+        analyzer.load_dataset(tmp_path)
+        # directly return head(10) — no need for a new component
+        df = analyzer.data
+        result = {
+            "columns": df.columns.tolist(),
+            "rows": df.head(10).fillna("N/A").to_dict(orient="records")
+        }
+        return {"status": "success", "data": result}
+    except CustomException as ce:
+        raise HTTPException(status_code=500, detail=str(ce))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cleanup(tmp_path)
+
 @app.post("/api/column-stats", tags=["Analysis"])
 async def column_stats(file: UploadFile = File(..., description="CSV or Excel file")):
     validate_file(file)
