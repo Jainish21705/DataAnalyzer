@@ -368,6 +368,23 @@
       </div>
     </div>
 
+    <!-- RECOMMENDATIONS -->
+    <div class="section-card" id="cardRecommendations">
+      <div class="section-header" onclick="toggleCard('cardRecommendations')">
+        <div class="section-header-left">
+          <div class="section-icon icon-amber">💡</div>
+          <div>
+            <div class="section-title-text">Column Recommendations</div>
+            <div class="section-subtitle">Actionable suggestions based on analysis</div>
+          </div>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body" id="bodyRecommendations">
+        <div class="step-loading"><div class="mini-spinner"></div>Generating recommendations…</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -431,6 +448,7 @@
     renderOutliers(outliers);
 
     renderStatBar(summary, missing, dups, outliers);
+    generateRecommendations(summary, missing, dups, outliers, colStats);
   }
 
   /* ════════════════════════
@@ -781,6 +799,182 @@
         <thead><tr><th>Column</th><th>Outlier Count</th><th>Outlier Rate</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
+  }
+  /* ════════════════════════════════════════
+   COLUMN RECOMMENDATIONS
+   Pure frontend logic — no API call needed
+   Uses data already fetched from all APIs
+   ════════════════════════════════════════ */
+  function generateRecommendations(summary, missing, dups, outliers, colStats) {
+    const body = document.getElementById('bodyRecommendations');
+    if (!body) return;
+
+    const recommendations = [];
+
+    const dataTypes   = summary?.data_types                          ?? {};
+    const numericStats = colStats?.numeric_stats                     ?? {};
+    const catStats     = colStats?.categorical_stats                 ?? {};
+    const totalRows    = summary?.num_rows                           ?? 1;
+
+    /* ── loop every column ── */
+    const allColumns = Object.keys(dataTypes);
+
+    allColumns.forEach(col => {
+      const missingPct   = missing?.[col]?.['missing_%']     ?? 0;
+      const dupPct       = dups?.[col]?.['duplicate_%']      ?? 0;   // ratio e.g 0.32
+      const outlierCount = outliers?.[col]?.outlier_count    ?? 0;
+      const outlierPct   = outliers?.[col]?.['outlier_%']    ?? 0;
+      const skewness     = numericStats?.[col]?.skewness     ?? null;
+      const uniqueCount  = catStats?.[col]?.num_unique_values ?? null;
+      const dtype        = dataTypes[col] ?? '';
+      const isNumeric    = dtype === 'float64' || dtype === 'int64';
+      const isObject     = dtype === 'str'     || dtype === 'object';
+
+      /* ── MISSING VALUES ── */
+      if (missingPct >= 50) {
+        recommendations.push({
+          col, severity: 'high',
+          reason: `${missingPct}% missing`,
+          action: 'Consider dropping this column — more than half the data is missing.',
+        });
+      } else if (missingPct >= 10) {
+        recommendations.push({
+          col, severity: 'medium',
+          reason: `${missingPct}% missing`,
+          action: isNumeric
+            ? 'Fill missing values with median (robust to outliers).'
+            : 'Fill missing values with mode (most frequent value).',
+        });
+      } else if (missingPct > 0) {
+        recommendations.push({
+          col, severity: 'low',
+          reason: `${missingPct}% missing`,
+          action: 'Small amount of missing data — safe to drop those rows or fill with median/mode.',
+        });
+      }
+
+      /* ── DUPLICATES ── */
+      if (dupPct >= 0.95) {
+        recommendations.push({
+          col, severity: 'high',
+          reason: `${(dupPct * 100).toFixed(1)}% duplicate rate`,
+          action: 'Nearly all values are repeated — very low cardinality. Consider dropping for ML.',
+        });
+      } else if (dupPct >= 0.80) {
+        recommendations.push({
+          col, severity: 'medium',
+          reason: `${(dupPct * 100).toFixed(1)}% duplicate rate`,
+          action: 'High duplication — column may not add predictive value for ML models.',
+        });
+      }
+
+      /* ── OUTLIERS ── */
+      if (isNumeric && outlierPct > 0.05) {
+        recommendations.push({
+          col, severity: 'high',
+          reason: `${outlierCount} outliers (${(outlierPct * 100).toFixed(2)}%)`,
+          action: 'High outlier presence — apply IQR capping or Winsorization before modeling.',
+        });
+      } else if (isNumeric && outlierCount > 0) {
+        recommendations.push({
+          col, severity: 'low',
+          reason: `${outlierCount} outliers detected`,
+          action: 'Minor outliers — consider Winsorization or investigate individually.',
+        });
+      }
+
+      /* ── SKEWNESS ── */
+      if (skewness !== null && skewness > 1) {
+        recommendations.push({
+          col, severity: 'medium',
+          reason: `Skewness: +${skewness}`,
+          action: 'Highly right-skewed — apply log transform or Box-Cox for better ML performance.',
+        });
+      } else if (skewness !== null && skewness < -1) {
+        recommendations.push({
+          col, severity: 'medium',
+          reason: `Skewness: ${skewness}`,
+          action: 'Highly left-skewed — apply square root or reflection + log transform.',
+        });
+      }
+
+      /* ── UNIQUE VALUES (categorical) ── */
+      if (isObject && uniqueCount !== null) {
+        if (uniqueCount === 1) {
+          recommendations.push({
+            col, severity: 'high',
+            reason: 'Only 1 unique value',
+            action: 'Constant column — drop it, it adds no information.',
+          });
+        } else if (uniqueCount >= totalRows * 0.95) {
+          recommendations.push({
+            col, severity: 'low',
+            reason: `${uniqueCount} unique values (~${((uniqueCount/totalRows)*100).toFixed(1)}% of rows)`,
+            action: 'Almost all values are unique — likely an ID or name column. Drop before ML training.',
+          });
+        } else if (uniqueCount <= 20) {
+          recommendations.push({
+            col, severity: 'low',
+            reason: `${uniqueCount} unique categories`,
+            action: 'Low cardinality categorical — suitable for One-Hot Encoding.',
+          });
+        } else {
+          recommendations.push({
+            col, severity: 'low',
+            reason: `${uniqueCount} unique categories`,
+            action: 'High cardinality categorical — consider Label Encoding or target encoding for ML.',
+          });
+        }
+      }
+    });
+
+    /* ── nothing to recommend ── */
+    if (recommendations.length === 0) {
+      body.innerHTML = `<div class="clean-state">✔ Dataset looks clean — no major issues found.</div>`;
+      return;
+    }
+
+    /* ── sort: high → medium → low ── */
+    const order = { high: 0, medium: 1, low: 2 };
+    recommendations.sort((a, b) => order[a.severity] - order[b.severity]);
+
+    const counts = {
+      high:   recommendations.filter(r => r.severity === 'high').length,
+      medium: recommendations.filter(r => r.severity === 'medium').length,
+      low:    recommendations.filter(r => r.severity === 'low').length,
+    };
+
+    /* ── render ── */
+    const cards = recommendations.map(r => `
+      <div style="
+        display:flex; gap:1rem; align-items:flex-start;
+        padding:1rem 1.2rem; border-radius:12px; margin-bottom:.7rem;
+        background:${r.severity === 'high' ? 'var(--red-100)' : r.severity === 'medium' ? 'var(--amber-100)' : 'var(--blue-50)'};
+        border-left: 4px solid ${r.severity === 'high' ? 'var(--red-600)' : r.severity === 'medium' ? 'var(--amber-600)' : 'var(--blue-600)'};
+      ">
+        <div style="font-size:1.1rem;margin-top:.1rem">
+          ${r.severity === 'high' ? '🔴' : r.severity === 'medium' ? '🟡' : '🔵'}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem;flex-wrap:wrap">
+            <span style="font-family:'Sora',sans-serif;font-weight:700;font-size:.88rem;color:var(--slate-900)">${r.col}</span>
+            <span class="badge ${r.severity === 'high' ? 'badge-red' : r.severity === 'medium' ? 'badge-amber' : 'badge-blue'}">${r.reason}</span>
+          </div>
+          <p style="font-size:.83rem;color:var(--slate-700);line-height:1.5">→ ${r.action}</p>
+        </div>
+      </div>`).join('');
+
+    body.innerHTML = `
+      <!-- summary counts -->
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.3rem">
+        <span class="badge badge-red">🔴 ${counts.high} High Priority</span>
+        <span class="badge badge-amber">🟡 ${counts.medium} Medium Priority</span>
+        <span class="badge badge-blue">🔵 ${counts.low} Low Priority</span>
+        <span style="font-size:.78rem;color:var(--slate-400);align-self:center;margin-left:.3rem">
+          ${recommendations.length} total recommendations across ${allColumns.length} columns
+        </span>
+      </div>
+      ${cards}`;
   }
 
   /* ════════════════════════
